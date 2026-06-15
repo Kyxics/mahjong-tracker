@@ -4,14 +4,21 @@ import type { Session } from '../engine/engine.ts';
 import { SEATS, type AnyVariant, type Seat } from '../engine/types.ts';
 import { h, toast } from './dom.ts';
 import { WIND_TILES } from './app.ts';
+import { handsChart, scoreLineChart } from './graph.ts';
 
 interface SummaryProps {
   session: Session<unknown, unknown>;
   variant: AnyVariant;
+  /** Re-render the app (used by the graph view toggle). */
+  rerender: () => void;
   onBack: (() => void) | null;
   onUndo: () => void;
   onNew: () => void;
 }
+
+// Which graph the summary is currently showing. Module-level so it survives the
+// app's full re-render between toggle taps.
+let graphMode: 'scores' | 'hands' = 'scores';
 
 interface Stats {
   hands: number;
@@ -165,9 +172,27 @@ export function renderSummary(p: SummaryProps): HTMLElement {
   const standings = v.finalStandings?.(s.table.scores, s.settings) ?? null;
   const order = ranking(s);
 
+  const chart = graphMode === 'scores' ? scoreLineChart(s) : handsChart(s, v);
+  const graphCard = h('div', { class: 'graph-card' },
+    h('div', { class: 'graph-tabs' },
+      h('button', {
+        class: graphMode === 'scores' ? 'on' : '',
+        text: 'Score trend',
+        onclick: () => { graphMode = 'scores'; p.rerender(); },
+      }),
+      h('button', {
+        class: graphMode === 'hands' ? 'on' : '',
+        text: 'Hands & self-draws',
+        onclick: () => { graphMode = 'hands'; p.rerender(); },
+      }),
+    ),
+  );
+  graphCard.append(chart);
+
   return h('div', { class: 'summary' },
     h('h1', { text: s.ended ? 'Game over' : 'Session summary' }),
     h('div', { class: 'muted small', text: `${v.name} · ${stats.hands} hands${s.ended ? ` · ${s.ended.reason}` : ''}` }),
+    graphCard,
     ...order.map((seat, i) => {
       const windIdx = SEATS.indexOf(seat);
       return h('div', { class: 'rank-row' },

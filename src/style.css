@@ -14,6 +14,11 @@
   --tile-ink: #20302a;
   --radius: 14px;
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  /* chart series colours (per seat) */
+  --p0: #3cb27e;
+  --p1: #d8a04a;
+  --p2: #5aa9d6;
+  --p3: #d07ab0;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -34,6 +39,9 @@ body {
   display: flex;
   flex-direction: column;
   padding: env(safe-area-inset-top) 14px calc(96px + env(safe-area-inset-bottom));
+  position: relative;
+  z-index: 1;
+  background: transparent;
 }
 
 h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: 0.01em; }
@@ -325,4 +333,149 @@ details.settings summary { min-height: 44px; display: flex; align-items: center;
   min-height: auto; height: auto; min-width: 0;
   padding: 3px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
+}
+
+/* =================================================================
+   Polish #2 additions
+   ================================================================= */
+
+/* ---------------------------------------------------- in-session tabs */
+.tabs {
+  display: flex; gap: 6px; margin: 2px 0 10px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px;
+}
+.tabs > button {
+  flex: 1; min-height: 42px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--muted); font-weight: 600;
+}
+.tabs > button.on { background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+
+/* --------------------------------------------- rolling number changes */
+.num { display: inline-block; will-change: transform, opacity; }
+.num.roll-up { animation: rollUp 0.32s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.num.roll-down { animation: rollDown 0.32s cubic-bezier(0.2, 0.7, 0.2, 1); }
+@keyframes rollUp {
+  0% { transform: translateY(0.7em); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes rollDown {
+  0% { transform: translateY(-0.7em); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.player .score { overflow: hidden; }
+
+/* ------------------------------------------------------ summary graphs */
+.graph-card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px; display: flex;
+  flex-direction: column; gap: 10px;
+}
+.graph-tabs { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.graph-tabs > button {
+  flex: 1; min-height: 40px; border: 0; border-radius: 0;
+  background: transparent; color: var(--muted); font-size: 14px; font-weight: 600;
+}
+.graph-tabs > button.on { background: var(--jade); color: #08130d; }
+.chart { display: flex; flex-direction: column; gap: 8px; }
+.chart-svg { width: 100%; height: auto; display: block; }
+.chart-empty { padding: 24px 8px; text-align: center; }
+.g-line { fill: none; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.g-zero { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
+.g-axis { fill: var(--muted); font-size: 9px; font-family: system-ui, sans-serif; }
+.g-bar { opacity: 0.92; }
+.g-bar.self { opacity: 1; }
+.g-self { fill: var(--text); }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.leg { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.chart-tally { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+.tally-row { display: flex; align-items: center; gap: 8px; }
+.tally-name { font-weight: 600; font-size: 14px; }
+.tally-val { margin-left: auto; }
+
+/* ============================ animated background scenes ============= */
+.scene {
+  position: fixed; inset: 0; z-index: 0;
+  overflow: hidden; pointer-events: none;
+}
+.scene-art { position: absolute; inset: 0; opacity: 0.6; }
+.scene-svg { width: 100%; height: 100%; display: block; }
+.scene-veil {
+  position: absolute; inset: 0;
+  background: color-mix(in srgb, var(--bg) 52%, transparent);
+}
+[data-theme='light'] .scene-art { opacity: 0.55; }
+
+/* steam */
+.sc-steam {
+  fill: none; stroke: #ffffff; stroke-width: 2.4; stroke-linecap: round;
+  opacity: 0; transform-box: fill-box; transform-origin: bottom;
+  animation: sc-steam 4.6s ease-in-out infinite;
+}
+@keyframes sc-steam {
+  0% { opacity: 0; transform: translateY(8px) scaleY(0.6); }
+  25% { opacity: 0.5; }
+  100% { opacity: 0; transform: translateY(-16px) scaleY(1.15); }
+}
+[data-theme='light'] .sc-steam { stroke: #fbf3e2; }
+
+/* twinkling lights */
+.sc-tw { animation: sc-tw 3.4s ease-in-out infinite; }
+@keyframes sc-tw { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+/* neon / lantern glow */
+.sc-glow { animation: sc-glow 3.8s ease-in-out infinite; }
+@keyframes sc-glow { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+/* gentle lantern sway (translate-based: origin-independent) */
+.sc-sway { animation: sc-sway 4s ease-in-out infinite; }
+@keyframes sc-sway { 0%, 100% { transform: translateX(-2px); } 50% { transform: translateX(2px); } }
+
+/* ceiling fan */
+.sc-fan { transform-box: fill-box; transform-origin: center; animation: sc-fan 2s linear infinite; }
+@keyframes sc-fan { to { transform: rotate(360deg); } }
+
+/* strolling cat */
+.sc-cat { animation: sc-cat 22s linear infinite; }
+@keyframes sc-cat {
+  0% { transform: translateX(-70px); }
+  50% { transform: translateX(440px); }
+  100% { transform: translateX(440px); }
+}
+
+/* passing scooter */
+.sc-scoot { animation: sc-scoot 14s linear infinite; }
+@keyframes sc-scoot {
+  0% { transform: translateX(-90px); }
+  60% { transform: translateX(450px); }
+  100% { transform: translateX(450px); }
+}
+
+/* falling sakura petals */
+.sc-petal { animation: sc-petal 9s linear infinite; opacity: 0; }
+@keyframes sc-petal {
+  0% { opacity: 0; transform: translate(var(--x), -12px) rotate(0deg); }
+  12% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(calc(var(--x) + 34px), 300px) rotate(220deg); }
+}
+
+/* fireflies */
+.sc-fly { animation: sc-fly 5.5s ease-in-out infinite; opacity: 0; }
+@keyframes sc-fly {
+  0%, 100% { opacity: 0; transform: translate(0, 0); }
+  30% { opacity: 1; transform: translate(8px, -7px); }
+  60% { opacity: 0.5; transform: translate(-6px, 5px); }
+  80% { opacity: 0.9; transform: translate(4px, -3px); }
+}
+
+/* drifting tiles (neutral scene) */
+.sc-float { animation: sc-float 7s ease-in-out infinite; }
+@keyframes sc-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .scene * { animation: none !important; }
+  .num.roll-up, .num.roll-down { animation: none !important; }
 }

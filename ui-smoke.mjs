@@ -33,20 +33,26 @@ if (scores().join(',') !== '0,0,0,0') fail('starting scores wrong: ' + scores())
 if (!app.textContent.includes('E1')) fail('round label missing');
 
 // --- record: Player 2 wins 3 fan off Player 1, recording the winning tile (1 Dot)
-const WIN_TILE = '\u{1F019}'; // 🀙 1 of circles
+const WIN_TILE = '\u{1F019}'; // 1 of circles
 btn('Win').click();
 btn('Player 2').click();          // winner
 btn('Player 1').click();          // discarder (in "how" step)
-btn('Next').click();              // value: default 3 fan → tiles step
+btn('Next').click();              // value: default 3 fan -> tiles step
 tileBtn(WIN_TILE).click();        // set the winning tile
-btn('Next').click();              // tiles → confirm
+btn('Next').click();              // tiles -> confirm
 btn('Confirm').click();
 if (scores().join(',') !== '-16,32,-8,-8') fail('post-hand scores wrong: ' + scores());
 if (!app.textContent.includes('E2')) fail('rotation did not advance: deal should pass to seat 1');
-if (!app.textContent.includes('3 fan')) fail('history missing hand description');
-if (!app.textContent.includes(WIN_TILE)) fail('history missing recorded winning tile');
 
-// --- draw (HK: single type, no extras → straight to confirm)
+// --- history now lives in its own tab
+if (app.textContent.includes('3 fan')) fail('history should not be on the table tab');
+btn('History').click();
+if (!app.textContent.includes('3 fan')) fail('history tab missing hand description');
+if (!app.textContent.includes(WIN_TILE)) fail('history tab missing recorded winning tile');
+btn('Table').click();
+if (scores().join(',') !== '-16,32,-8,-8') fail('table tab scores wrong after switch: ' + scores());
+
+// --- draw (HK: single type, no extras -> straight to confirm)
 btn('Draw').click();
 btn('Confirm').click();
 if (scores().join(',') !== '-16,32,-8,-8') fail('draw changed scores');
@@ -65,19 +71,26 @@ btn('Next').click();
 if (!app.textContent.includes('minimum 3 fan')) fail('min-fan error not shown');
 btn('Cancel').click();
 
-// --- menu: end session → summary
+// --- menu: end session -> summary
 btn('⋯').click();
 btn('End session & show summary').click();
 if (!app.textContent.includes('Session summary')) fail('summary screen missing');
 if (!app.textContent.includes('Hands won')) fail('summary stats missing');
+
+// --- summary graph toggle (no data yet -> empty states, but must not throw)
+if (!app.textContent.includes('Score trend')) fail('summary graph toggle missing');
+btn('Hands & self-draws').click();
+if (!app.querySelector('.summary .chart')) fail('hands chart did not render');
+btn('Score trend').click();
+if (!app.querySelector('.summary .chart')) fail('score chart did not render');
 
 // --- persistence: re-init from a fresh app root simulating reload
 btn('Back to table').click();
 btn('Win').click();
 btn('Player 4').click();
 btn('Player 2').click();
-btn('Next').click();              // value → tiles
-btn('Skip').click();              // skip tile entry → confirm
+btn('Next').click();              // value -> tiles
+btn('Skip').click();              // skip tile entry -> confirm
 btn('Confirm').click();
 const before = scores().join(',');
 const app2 = dom.window.document.createElement('div');

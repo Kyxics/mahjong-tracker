@@ -35,6 +35,7 @@ import { h, toast } from './dom.ts';
 import { clearSavedSession, loadSavedSession, saveSession, variantById } from './store.ts';
 import { renderSummary } from './summary.ts';
 import { applyTheme, getTheme, toggleTheme } from './theme.ts';
+import { syncScene } from './scene.ts';
 
 // Mahjong tile glyphs, U+1F000 block (East, South, West, North winds).
 export const WIND_TILES = ['\u{1F000}', '\u{1F001}', '\u{1F002}', '\u{1F003}'] as const;
@@ -42,6 +43,7 @@ export const WIND_TILES = ['\u{1F000}', '\u{1F001}', '\u{1F002}', '\u{1F003}'] a
 // ------------------------------------------------------------------ state
 
 type Screen = 'setup' | 'table' | 'summary';
+type TableTab = 'table' | 'history';
 
 interface CurrentWin {
   winner?: Seat;
@@ -70,9 +72,17 @@ type Sheet =
 
 let root: HTMLElement;
 let screen: Screen = 'setup';
+let tableTab: TableTab = 'table';
 let variant: AnyVariant | null = null;
 let session: Session<unknown, unknown> | null = null;
 let sheet: Sheet | null = null;
+
+// Last-seen numeric values, so a full re-render can detect which numbers
+// changed and roll only those (full re-render recreates every node).
+const rollState = new Map<string, number>();
+function resetRolls(): void {
+  rollState.clear();
+}
 
 // Setup-screen scratch state.
 const setup = {
@@ -91,6 +101,8 @@ export function initApp(el: HTMLElement): void {
     session = saved.session;
     screen = saved.session.ended ? 'summary' : 'table';
   }
+  resetRolls();
+  tableTab = 'table';
   render();
 }
 
@@ -105,6 +117,8 @@ function render(): void {
     layers.push(renderSheet());
   }
   root.replaceChildren(...layers.filter((x): x is HTMLElement => x !== null));
+  const variantId = screen === 'setup' ? setup.variantId : variant?.id ?? null;
+  syncScene(variantId, getTheme());
 }
 
 function closeSheet(): void {
@@ -133,6 +147,8 @@ function renderSetup(): HTMLElement {
     variant = variantById(setup.variantId)!;
     session = createSession(variant, players, { ...setup.settings[variant.id] });
     saveSession(session);
+    resetRolls();
+    tableTab = 'table';
     screen = 'table';
     render();
   };
@@ -151,6 +167,8 @@ function renderSetup(): HTMLElement {
           variant = saved.variant;
           session = saved.session;
           screen = saved.session.ended ? 'summary' : 'table';
+          resetRolls();
+          tableTab = 'table';
           render();
         } },
         h('b', { text: 'Resume last session' }),
@@ -223,6 +241,17 @@ function renderSettingsEditor(v: AnyVariant): HTMLElement {
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDelta = (n: number) => (n > 0 ? `+${fmt(n)}` : fmt(n));
 
+/**
+ * A number that rolls (slide + fade) when its value changes between renders.
+ * `key` must be stable across renders for the same logical number.
+ */
+function rollNum(key: string, value: number, text?: string): HTMLElement {
+  const prev = rollState.get(key);
+  rollState.set(key, value);
+  const dir = prev === undefined || prev === value ? '' : value > prev ? ' roll-up' : ' roll-down';
+  return h('span', { class: `num${dir}`, text: text ?? fmt(value) });
+}
+
 function lastHandDeltas(): readonly number[] | null {
   if (!session) return null;
   for (let i = session.ledger.length - 1; i >= 0; i--) {
@@ -272,11 +301,50 @@ function renderDiamond(): HTMLElement {
   );
 }
 
-function renderTable(): HTMLElement {
+function renderTabs(): HTMLElement {
+  const handCount = session!.ledger.filter((e) => e.kind === 'hand').length;
+  return h('div', { class: 'tabs' },
+    h('button', { class: tableTab === 'table' ? 'on' : '', text: 'Table', onclick: () => { tableTab = 'table'; render(); } }),
+    h('button', {
+      class: tableTab === 'history' ? 'on' : '',
+      text: handCount ? `History · ${handCount}` : 'History',
+      onclick: () => { tableTab = 'history'; render(); },
+    }),
+  );
+}
+
+function renderTableTab(): HTMLElement {
   const s = session!;
   const v = variant!;
   const deltas = lastHandDeltas();
   const status = v.statusText?.(s.state, s.table, s.settings) ?? null;
+  return h('div', {},
+    renderDiamond(),
+    h('div', { class: 'scores' },
+      ...SEATS.map((seat) => {
+        const isDealer = seat === s.table.dealerSeat;
+        const wind = seatWind(seat, s.table.dealerSeat);
+        const windIdx = ['E', 'S', 'W', 'N'].indexOf(wind);
+        const d = deltas ? deltas[seat] : 0;
+        return h('div', { class: `player${isDealer ? ' dealer' : ''}` },
+          h('div', { class: 'who' },
+            h('span', { class: 'windtile', text: WIND_TILES[windIdx] }),
+            h('span', { class: 'name', text: s.players[seat] }),
+          ),
+          h('div', { class: 'score' }, rollNum(`score-${seat}`, s.table.scores[seat])),
+          h('div', { class: `delta ${d > 0 ? 'pos' : d < 0 ? 'neg' : ''}` },
+            deltas && d !== 0 ? rollNum(`delta-${seat}`, d, fmtDelta(d)) : null,
+          ),
+        );
+      }),
+    ),
+    h('div', { class: 'statusline', text: status ?? '' }),
+  );
+}
+
+function renderTable(): HTMLElement {
+  const s = session!;
+  const v = variant!;
 
   return h('div', {},
     h('div', { class: 'topbar' },
@@ -290,32 +358,17 @@ function renderTable(): HTMLElement {
         h('button', { class: 'btn-ghost', text: '⋯', onclick: () => { sheet = { kind: 'menu' }; render(); } }),
       ),
     ),
-    renderDiamond(),
-    h('div', { class: 'scores' },
-      ...SEATS.map((seat) => {
-        const isDealer = seat === s.table.dealerSeat;
-        const wind = seatWind(seat, s.table.dealerSeat);
-        const windIdx = ['E', 'S', 'W', 'N'].indexOf(wind);
-        const d = deltas ? deltas[seat] : 0;
-        return h('div', { class: `player${isDealer ? ' dealer' : ''}` },
-          h('div', { class: 'who' },
-            h('span', { class: 'windtile', text: WIND_TILES[windIdx] }),
-            h('span', { class: 'name', text: s.players[seat] }),
+    renderTabs(),
+    tableTab === 'history' ? renderHistory() : renderTableTab(),
+    tableTab === 'table'
+      ? h('div', { class: 'actionbar' },
+          h('div', { class: 'inner' },
+            h('button', { class: 'undo', text: '↩', disabled: s.ledger.length === 0, onclick: doUndo }),
+            h('button', { class: 'draw', text: 'Draw', onclick: openDraw }),
+            h('button', { class: 'btn-primary btn-big win', text: 'Win', onclick: openWin }),
           ),
-          h('div', { class: 'score', text: fmt(s.table.scores[seat]) }),
-          h('div', { class: `delta ${d > 0 ? 'pos' : d < 0 ? 'neg' : ''}`, text: deltas && d !== 0 ? fmtDelta(d) : '' }),
-        );
-      }),
-    ),
-    h('div', { class: 'statusline', text: status ?? '' }),
-    renderHistory(),
-    h('div', { class: 'actionbar' },
-      h('div', { class: 'inner' },
-        h('button', { class: 'undo', text: '↩', disabled: s.ledger.length === 0, onclick: doUndo }),
-        h('button', { class: 'draw', text: 'Draw', onclick: openDraw }),
-        h('button', { class: 'btn-primary btn-big win', text: 'Win', onclick: openWin }),
-      ),
-    ),
+        )
+      : null,
   );
 }
 
@@ -789,6 +842,7 @@ function renderMenu(): HTMLElement {
   );
 }
 
+
 function renderOverride(sh: Extract<Sheet, { kind: 'override' }>): HTMLElement {
   const s = session!;
   return h('div', { class: 'sheet' },
@@ -823,6 +877,7 @@ function renderSummaryScreen(): HTMLElement {
   return renderSummary({
     session: session!,
     variant: variant!,
+    rerender: () => render(),
     onBack: session!.ended
       ? null
       : () => { screen = 'table'; render(); },
@@ -831,6 +886,7 @@ function renderSummaryScreen(): HTMLElement {
       clearSavedSession();
       session = null;
       variant = null;
+      resetRolls();
       screen = 'setup';
       render();
     },
