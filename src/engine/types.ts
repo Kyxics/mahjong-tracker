@@ -124,6 +124,14 @@ export interface WinDeclaration<V> {
   /** Required when winType === 'discard'. */
   discarder?: Seat;
   value: V;
+  /**
+   * Optional, presentational only. The full winning hand as tile ids and which
+   * tile completed it (the discard thrown on a ron, the tile drawn on a tsumo).
+   * The engine and variants never read these — they exist purely to record and
+   * replay a hand in history. Omitted when the user skips tile entry.
+   */
+  hand?: readonly string[];
+  winningTile?: string;
 }
 
 export interface DrawTypeSpec {
@@ -182,6 +190,12 @@ export interface VariantConfig<V, S> {
   maxWinners(settings: Settings): number;
   handInputs: readonly HandInputSpec[];
   drawTypes: readonly DrawTypeSpec[];
+  /**
+   * Tiles in a complete winning hand including the winning tile (13+1 = 14 for
+   * most variants, 16+1 = 17 for Taiwanese). UI-only: drives the optional tile
+   * recorder. Defaults to 14 when omitted.
+   */
+  handTileCount?: number;
 
   // ---- variant state (honba, riichi pot, …; null if none) ----
   initState(settings: Settings): S;

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test src/engine/engine.test.ts src/variants/hongkong.test.ts src/variants/riichi.test.ts",
+    "test": "node --experimental-strip-types --test src/engine/engine.test.ts src/variants/hongkong.test.ts src/variants/riichi.test.ts src/variants/taiwanese.test.ts src/variants/malaysian.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
